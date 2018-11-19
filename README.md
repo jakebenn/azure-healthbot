@@ -17,7 +17,7 @@ This samples shows how to:
     botFilePath=<copy value from App settings>
     botFileSecret=<copy value from App settings>
     ```
-- The `HealthAnalyticsBot.bot` and `publish.js` files in the project root have been excluded form the GitHub repo (they contains lots of 
+- The `HealthAnalyticsBot.bot` and `publish.js` files in the project root have been excluded from the GitHub repo (they contains lots of 
   Azure configuration information). You'll need to get this file from the downloaded code zip file obtained on the Azure portal: 
   `Web App Bot > Build > Download Bot source code`
 

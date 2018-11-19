@@ -6,3 +6,4 @@ deploy.sh
 .DS_Store
 .idea/
 publish.js
+luis_test.sh

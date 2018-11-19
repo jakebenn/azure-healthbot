@@ -34,8 +34,8 @@
     },
     {
       "type": "Action.Submit",
-      "title": "Query Report Data",
-      "data": "I'd like to query the data."
+      "title": "Analyze Report Data",
+      "data": "Analyze report data"
     },
     {
       "type": "Action.Submit",

@@ -11,19 +11,23 @@ const { DialogSet, DialogTurnStatus } = require('botbuilder-dialogs');
 const { UserProfile } = require('./dialogs/greeting/userProfile');
 const { WelcomeCard } = require('./dialogs/welcome');
 const { GreetingDialog } = require('./dialogs/greeting');
+const { AnalysisDialog } = require('./dialogs/analyze');
 
 // Greeting Dialog ID
 const GREETING_DIALOG = 'greetingDialog';
+const ANALYSIS_DIALOG = 'analysisDialog';
 
 // State Accessor Properties
 const DIALOG_STATE_PROPERTY = 'dialogState';
 const USER_PROFILE_PROPERTY = 'userProfileProperty';
+const ANALYSIS_STATE_PROPERTY = 'analysisStateProperty';
 
 // LUIS service type entry as defined in the .bot file.
 const LUIS_CONFIGURATION = 'BasicBotLuisApplication';
 
 // Supported LUIS Intents.
 const GREETING_INTENT = 'Greeting';
+const ANALYSIS_INTENT = 'Analyze_Data';
 const CANCEL_INTENT = 'Cancel';
 const HELP_INTENT = 'Help';
 const NONE_INTENT = 'None';
@@ -72,11 +76,14 @@ class BasicBot {
         // Create the property accessors for user and conversation state
         this.userProfileAccessor = userState.createProperty(USER_PROFILE_PROPERTY);
         this.dialogState = conversationState.createProperty(DIALOG_STATE_PROPERTY);
+        this.analysisState = conversationState.createProperty(ANALYSIS_STATE_PROPERTY);
 
         // Create top-level dialog(s)
         this.dialogs = new DialogSet(this.dialogState);
+
         // Add the Greeting dialog to the set
         this.dialogs.add(new GreetingDialog(GREETING_DIALOG, this.userProfileAccessor));
+        this.dialogs.add(new AnalysisDialog(ANALYSIS_DIALOG, this.analysisState));
 
         this.conversationState = conversationState;
         this.userState = userState;
@@ -110,7 +117,7 @@ class BasicBot {
             await this.updateUserProfile(results, context);
 
             // Based on LUIS topIntent, evaluate if we have an interruption.
-            // Interruption here refers to user looking for help/ cancel existing dialog
+            // Interruption here refers to user looking for help/cancel existing dialog
             const interrupted = await this.isTurnInterrupted(dc, results);
             if (interrupted) {
                 if (dc.activeDialog !== undefined) {
@@ -130,6 +137,9 @@ class BasicBot {
                     case DialogTurnStatus.empty:
                         // Determine what we should do based on the top intent from LUIS.
                         switch (topIntent) {
+                            case ANALYSIS_INTENT:
+                                await dc.beginDialog(ANALYSIS_DIALOG);
+                                break;
                             case GREETING_INTENT:
                                 await dc.beginDialog(GREETING_DIALOG);
                                 break;
