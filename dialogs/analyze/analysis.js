@@ -195,8 +195,10 @@ class Analysis extends ComponentDialog {
     async greetUser(step) {
         const analysisProfile = await this.analysisStateAccessor.get(step.context);
         // Display to the user their profile information and end dialog
-        await step.context.sendActivity(`Analysis is for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
-        await step.context.sendActivity(`You can always say 'Cancel' to start over`);
+        await step.context.sendActivity(`Analysis for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
+        // await step.context.sendActivity(`You can always say 'Cancel' to start over`);
+
+        await this.analysisStateAccessor.set(step.context, {});
         return await step.endDialog();
     }
 }
