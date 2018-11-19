@@ -1,5 +1,6 @@
 // Import required Bot Builder
-const { ComponentDialog, WaterfallDialog, TextPrompt } = require('botbuilder-dialogs');
+const { ComponentDialog, WaterfallDialog, TextPrompt, ChoicePrompt } = require('botbuilder-dialogs');
+const { ActivityTypes, CardFactory } = require('botbuilder');
 
 // Analysis state for analysis dialog
 const { AnalysisProfile } = require('./analysisProfile');
@@ -16,6 +17,8 @@ const TIME_PERIOD_PROMPT = 'timePeriodPrompt';
 
 const VALIDATION_SUCCEEDED = true;
 const VALIDATION_FAILED = !VALIDATION_SUCCEEDED;
+
+const AVAILABLE_DATA_SOURCES = ['Occupancy Data', 'Check-in Data'];
 
 /**
  * The Analysis class represents a conversational dialog with a user to query/analyze some data
@@ -42,7 +45,7 @@ class Analysis extends ComponentDialog {
         ]));
 
         // Add text prompts for name and city
-        this.addDialog(new TextPrompt(DATA_SOURCE_PROMPT, this.validateDataSource));
+        this.addDialog(new ChoicePrompt(DATA_SOURCE_PROMPT, this.validateDataSource));
         this.addDialog(new TextPrompt(TIME_PERIOD_PROMPT, this.validateTimePeriod));
 
         // Save off our state accessor for later use
@@ -97,7 +100,13 @@ class Analysis extends ComponentDialog {
         }
         if (!analysisProfile.dataSource) {
             // prompt for data source name, if missing
-            return await step.prompt(DATA_SOURCE_PROMPT, 'What data source would you like to analyze? "Hospital Occupancy" or "Check-In Data"? ');
+
+            const promptOptions = {
+                prompt: `What data source would you like to analyze?`,
+                reprompt: 'That was not a valid choice, please select from the available options.',
+                choices: AVAILABLE_DATA_SOURCES
+            };
+            return await step.prompt(DATA_SOURCE_PROMPT, promptOptions);
         } else {
             return await step.next();
         }
@@ -116,10 +125,8 @@ class Analysis extends ComponentDialog {
         const analysisProfile = await this.analysisStateAccessor.get(step.context);
 
         if (analysisProfile.dataSource === undefined && step.result) {
-            let lowerCaseDataSource = step.result;
 
-            // capitalize and set data source
-            analysisProfile.dataSource = lowerCaseDataSource.charAt(0).toUpperCase() + lowerCaseDataSource.substr(1);
+            analysisProfile.dataSource = step.result.value;
             await this.analysisStateAccessor.set(step.context, analysisProfile);
         }
         if (!analysisProfile.timePeriod) {
@@ -153,13 +160,13 @@ class Analysis extends ComponentDialog {
      */
     async validateDataSource(validatorContext) {
 
-        // Validate that the user entered a minimum length for their name
-        const value = (validatorContext.recognized.value || '').trim();
 
-        if (value.length >= DATA_SOURCE_LENGTH_MIN) {
+        const dataSourceValue = validatorContext.recognized.value.value ;
+
+        if (AVAILABLE_DATA_SOURCES.includes(dataSourceValue)) {
             return VALIDATION_SUCCEEDED;
         } else {
-            await validatorContext.context.sendActivity(`Names need to be at least ${ DATA_SOURCE_LENGTH_MIN } characters long.`);
+            await validatorContext.context.sendActivity(`Data source must be one of the following: ${ AVAILABLE_DATA_SOURCES.join(', ') }`);
             return VALIDATION_FAILED;
         }
     }
