@@ -1,7 +1,6 @@
-// SQL Server
-const Connection = require('tedious').Connection;
-const Request = require('tedious').Request;
-const sql = require('mssql')
+const sql = require('mssql');        // SQL Server
+const fetch = require('node-fetch');
+// const request = require('request');  // HTTP requests for REST API calls
 
 // Import required Bot Builder
 const { ComponentDialog, WaterfallDialog, TextPrompt, ChoicePrompt } = require('botbuilder-dialogs');
@@ -192,14 +191,6 @@ class Analysis extends ComponentDialog {
         }
     }
 
-    wait(ms)
-    {
-        var d = new Date();
-        var d2 = null;
-        do { d2 = new Date(); }
-        while(d2-d < ms);
-    }
-
     /**
      * Helper function to greet user with information in greetingState.
      *
@@ -209,114 +200,42 @@ class Analysis extends ComponentDialog {
     async greetUser(step) {
         const analysisProfile = await this.analysisStateAccessor.get(step.context);
 
-        // Display to the user their profile information and end dialog
+        // Display to the user their analysis information
         await step.context.sendActivity(`Analysis for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
 
+        // Make a database call
         try {
-            const connectionString = `mssql://${process.env.dbUser}:${encodeURI(process.env.dbPassword)}@${process.env.dbServer}/${process.env.dbName}?encrypt=true`
+            const connectionString = `mssql://${process.env.dbUser}:${encodeURI(process.env.dbPassword)}@${process.env.dbServer}/${process.env.dbName}?encrypt=true`;
             await sql.connect(connectionString);
             const result = await sql.query`select * from Persons;`;
-
             const row = result.recordsets[0][0];
 
             let data = '';
             data += `FirstName: ${row.FirstName}\n`;
             data += `LastName : ${row.LastName}\n`;
             data += `Address  : ${row.Address}\n`;
-
-            console.log(data);
-            await step.context.sendActivity(`Data: ${ data }`);
+            await step.context.sendActivity(`SQL Data:\n ${ data }`);
+            console.log('====> Just sent SQL data');
             sql.close();
 
         } catch (err) {
-            console.log('[ERROR]: ' + err)
+            console.log('[SQL ERROR]: ' + err)
         }
 
+        // Make a REST API call
+        try {
+            const url = 'https://jsonplaceholder.typicode.com/todos/1';
+            const response = await fetch(url);
+            const json = await response.json();
+            const apiData = ` userId: ${json.userId}\n title: ${json.title}`;
+            await step.context.sendActivity(`API Data:\n ${ apiData }`);
+        } catch (err) {
+            console.log('[API ERROR]: ' + err)
+        }
+
+        // End dialog
         await this.analysisStateAccessor.set(step.context, {});
         return await step.endDialog();
-    }
-
-    async greetUser2(step) {
-        const analysisProfile = await this.analysisStateAccessor.get(step.context);
-
-        // Display to the user their profile information and end dialog
-        await step.context.sendActivity(`Analysis for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
-        console.log('====> Start getting data...');
-
-        let myData = '';
-        return this.getData(step, async function(stepContext, data) {
-            console.log('====> In callback! Data: ' + data);
-            myData = data;
-
-            await step.context.sendActivity(data);
-            await this.analysisStateAccessor.set(step.context, {});
-            return await step.endDialog();
-        });
-
-        // console.log(`====> Starting sleep`);
-        // // this.wait(8000);
-        // console.log(`====> Ending sleep`);
-        //
-        // console.log(`====> myData: ${myData}`);
-        // // await step.context.sendActivity(myData);
-        // console.log('====> Done getting data. Ending dialog.');
-
-
-    }
-
-    async getData(stepContext, callback) {
-
-        // Create connection to database
-        const config = {
-            userName: process.env.dbUser,
-            password: process.env.dbPassword,
-            server: process.env.dbServer,
-            options:
-                {
-                    database: process.env.dbName,
-                    encrypt: true
-                }
-            };
-
-        const connection = new Connection(config);
-
-        // Attempt to connect and execute queries if connection goes through
-        connection.on('connect', function(err) {
-                console.log('===> connection.on');
-                if (err) {
-                    console.log(err);
-                } else {
-                    return queryDatabase(callback);
-                }
-            }
-        );
-
-        function queryDatabase(callback) {
-
-            console.log('Reading rows from the Table...');
-
-            // Read all rows from table
-            let request = new Request(
-                "SELECT * FROM Persons;",
-
-                function(err, rowCount, rows) {
-                    console.log(rowCount + ' row(s) returned');
-                }
-            );
-
-            request.on('row', function(columns) {
-
-                let data = '';
-                console.log('====> request.on');
-                columns.forEach(function(column) {
-                    data += column.metadata.colName + ' = ' + column.value + '\n';
-                    console.log("%s\t%s", column.metadata.colName, column.value);
-                });
-                callback(stepContext, data);
-            });
-
-            connection.execSql(request);
-        }
 
     }
 }
