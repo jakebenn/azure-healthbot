@@ -1,6 +1,7 @@
-const sql = require('mssql');        // SQL Server
-const fetch = require('node-fetch');
-// const request = require('request');  // HTTP requests for REST API calls
+const sql = require('mssql');             // SQL Server
+const fetch = require('node-fetch');      // HTTP requests for REST API calls
+const storage = require('azure-storage'); // Azure storage SDK
+const path = require('path');
 
 // Import required Bot Builder
 const { ComponentDialog, WaterfallDialog, TextPrompt, ChoicePrompt } = require('botbuilder-dialogs');
@@ -208,6 +209,8 @@ class Analysis extends ComponentDialog {
             const connectionString = `mssql://${process.env.dbUser}:${encodeURI(process.env.dbPassword)}@${process.env.dbServer}/${process.env.dbName}?encrypt=true`;
             await sql.connect(connectionString);
             const result = await sql.query`select * from Persons;`;
+            console.log('====> Got SQL data');
+
             const row = result.recordsets[0][0];
 
             let data = '';
@@ -215,7 +218,7 @@ class Analysis extends ComponentDialog {
             data += `LastName : ${row.LastName}\n`;
             data += `Address  : ${row.Address}\n`;
             await step.context.sendActivity(`SQL Data:\n ${ data }`);
-            console.log('====> Just sent SQL data');
+            console.log('====> Sent SQL data');
             sql.close();
 
         } catch (err) {
@@ -226,6 +229,7 @@ class Analysis extends ComponentDialog {
         try {
             const url = 'https://jsonplaceholder.typicode.com/todos/1';
             const response = await fetch(url);
+            console.log('====> Got API data');
             const json = await response.json();
             const apiData = ` userId: ${json.userId}\n title: ${json.title}`;
             await step.context.sendActivity(`API Data:\n ${ apiData }`);
@@ -233,7 +237,52 @@ class Analysis extends ComponentDialog {
             console.log('[API ERROR]: ' + err)
         }
 
+        // Get file data from Azure Blob Storage
+        const blobName = process.env.dataFileName;
+        const blobService = storage.createBlobService();
+        const dowloadFilePath = path.resolve('./' + blobName.replace('.csv', '.downloaded.csv'));
+
+
+        const downloadBlob = async (containerName, blobName) => {
+            const dowloadFilePath = path.resolve('./' + blobName.replace('.txt', '.downloaded.txt'));
+            return new Promise((resolve, reject) => {
+                blobService.getBlobToText(containerName, blobName, (err, data) => {
+                    console.log('====> Got blob data');
+                    if (err) {
+                        reject(err);
+                    } else {
+                        console.log(`====> Got blob data: ${data}`);
+                        resolve({ message: `Blob downloaded "${data}"`, text: data });
+                        return data;
+                    }
+                });
+            });
+        };
+        const blobData = await downloadBlob(process.env.containerName, process.env.dataFileName);
+        const rows = blobData.text.replace('\r', '').split('\n');
+        const columns = rows[0].split(',');
+
+        let dataString = '';
+        for (let r=1; r <= 2; r++) {
+            const row = rows[r].split(',');
+
+            for (let c=0; c < columns.length; c++) {
+                dataString += columns[c] + ': ' + row[c] + '\n'
+            }
+
+
+            if (r < 2) {
+                dataString += '\n------\n';
+            }
+        }
+        dataString = dataString.replace('\r', '');
+        dataString += '\n';
+
+        console.log(`Unpacked data:\n${dataString}`);
+        await step.context.sendActivity(`Blog Data:\n ${ dataString }`);
+
         // End dialog
+        console.log('+++++> Closing dialog');
         await this.analysisStateAccessor.set(step.context, {});
         return await step.endDialog();
 
