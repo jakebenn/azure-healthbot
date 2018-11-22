@@ -1,3 +1,8 @@
+// SQL Server
+const Connection = require('tedious').Connection;
+const Request = require('tedious').Request;
+const sql = require('mssql')
+
 // Import required Bot Builder
 const { ComponentDialog, WaterfallDialog, TextPrompt, ChoicePrompt } = require('botbuilder-dialogs');
 const { ActivityTypes, CardFactory } = require('botbuilder');
@@ -17,7 +22,6 @@ const TIME_PERIOD_PROMPT = 'timePeriodPrompt';
 
 const VALIDATION_SUCCEEDED = true;
 const VALIDATION_FAILED = !VALIDATION_SUCCEEDED;
-
 const AVAILABLE_DATA_SOURCES = ['Occupancy Data', 'Check-in Data'];
 
 /**
@@ -187,19 +191,133 @@ class Analysis extends ComponentDialog {
             return VALIDATION_FAILED;
         }
     }
+
+    wait(ms)
+    {
+        var d = new Date();
+        var d2 = null;
+        do { d2 = new Date(); }
+        while(d2-d < ms);
+    }
+
     /**
      * Helper function to greet user with information in greetingState.
      *
      * @param {WaterfallStepContext} step contextual information for the current step being executed
      */
+
     async greetUser(step) {
         const analysisProfile = await this.analysisStateAccessor.get(step.context);
+
         // Display to the user their profile information and end dialog
         await step.context.sendActivity(`Analysis for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
-        // await step.context.sendActivity(`You can always say 'Cancel' to start over`);
+
+        try {
+            const connectionString = `mssql://${process.env.dbUser}:${encodeURI(process.env.dbPassword)}@${process.env.dbServer}/${process.env.dbName}?encrypt=true`
+            await sql.connect(connectionString);
+            const result = await sql.query`select * from Persons;`;
+
+            const row = result.recordsets[0][0];
+
+            let data = '';
+            data += `FirstName: ${row.FirstName}\n`;
+            data += `LastName : ${row.LastName}\n`;
+            data += `Address  : ${row.Address}\n`;
+
+            console.log(data);
+            await step.context.sendActivity(`Data: ${ data }`);
+            sql.close();
+
+        } catch (err) {
+            console.log('[ERROR]: ' + err)
+        }
 
         await this.analysisStateAccessor.set(step.context, {});
         return await step.endDialog();
+    }
+
+    async greetUser2(step) {
+        const analysisProfile = await this.analysisStateAccessor.get(step.context);
+
+        // Display to the user their profile information and end dialog
+        await step.context.sendActivity(`Analysis for the ${ analysisProfile.dataSource } for the period ${ analysisProfile.timePeriod }.`);
+        console.log('====> Start getting data...');
+
+        let myData = '';
+        return this.getData(step, async function(stepContext, data) {
+            console.log('====> In callback! Data: ' + data);
+            myData = data;
+
+            await step.context.sendActivity(data);
+            await this.analysisStateAccessor.set(step.context, {});
+            return await step.endDialog();
+        });
+
+        // console.log(`====> Starting sleep`);
+        // // this.wait(8000);
+        // console.log(`====> Ending sleep`);
+        //
+        // console.log(`====> myData: ${myData}`);
+        // // await step.context.sendActivity(myData);
+        // console.log('====> Done getting data. Ending dialog.');
+
+
+    }
+
+    async getData(stepContext, callback) {
+
+        // Create connection to database
+        const config = {
+            userName: process.env.dbUser,
+            password: process.env.dbPassword,
+            server: process.env.dbServer,
+            options:
+                {
+                    database: process.env.dbName,
+                    encrypt: true
+                }
+            };
+
+        const connection = new Connection(config);
+
+        // Attempt to connect and execute queries if connection goes through
+        connection.on('connect', function(err) {
+                console.log('===> connection.on');
+                if (err) {
+                    console.log(err);
+                } else {
+                    return queryDatabase(callback);
+                }
+            }
+        );
+
+        function queryDatabase(callback) {
+
+            console.log('Reading rows from the Table...');
+
+            // Read all rows from table
+            let request = new Request(
+                "SELECT * FROM Persons;",
+
+                function(err, rowCount, rows) {
+                    console.log(rowCount + ' row(s) returned');
+                }
+            );
+
+            request.on('row', function(columns) {
+
+                let data = '';
+                console.log('====> request.on');
+                columns.forEach(function(column) {
+                    data += column.metadata.colName + ' = ' + column.value + '\n';
+                    console.log("%s\t%s", column.metadata.colName, column.value);
+                });
+                callback(stepContext, data);
+            });
+
+            connection.execSql(request);
+        }
+
     }
 }
 
