@@ -279,7 +279,7 @@ class Analysis extends ComponentDialog {
         dataString += '\n';
 
         console.log(`Unpacked data:\n${dataString}`);
-        await step.context.sendActivity(`Blog Data:\n ${ dataString }`);
+        await step.context.sendActivity(`Blob File Data:\n ${ dataString }`);
 
         // End dialog
         console.log('+++++> Closing dialog');

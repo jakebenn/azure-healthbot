@@ -17,6 +17,7 @@
         "botbuilder": "^4.1.5",
         "botbuilder-ai": "^4.1.5",
         "botbuilder-azure": "^4.1.5",
+        "botbuilder-cognitiveservices": "^1.2.0",
         "botbuilder-dialogs": "^4.1.5",
         "botframework-config": "^4.1.5",
         "dotenv": "^6.1.0",

@@ -64,10 +64,13 @@ adapter.onTurnError = async (context, error) => {
     // NOTE: In production environment, you should consider logging this to Azure
     //       application insights.
     console.error(`\n [onTurnError]: ${ error }`);
+
     // Send a message to the user
     await context.sendActivity(`Oops. Something went wrong!`);
+
     // Clear out state
     await conversationState.clear(context);
+
     // Save state changes.
     await conversationState.saveChanges(context);
 };
@@ -116,8 +119,10 @@ server.listen(process.env.port || process.env.PORT || 3978, function() {
 
 // Listen for incoming activities and route them to your bot main dialog.
 server.post('/api/messages', (req, res) => {
+
     // Route received a request to adapter for processing
     adapter.processActivity(req, res, async (turnContext) => {
+
         // route to bot activity handler.
         await bot.onTurn(turnContext);
     });

@@ -5,13 +5,14 @@
 
 // Import required Bot Builder
 const { ActivityTypes, CardFactory } = require('botbuilder');
-const { LuisRecognizer } = require('botbuilder-ai');
+const { LuisRecognizer, QnAMaker, QnAMakerEndpoint, QnAMakerOptions } = require('botbuilder-ai');
 const { DialogSet, DialogTurnStatus } = require('botbuilder-dialogs');
 
 const { UserProfile } = require('./dialogs/greeting/userProfile');
 const { WelcomeCard } = require('./dialogs/welcome');
 const { GreetingDialog } = require('./dialogs/greeting');
 const { AnalysisDialog } = require('./dialogs/analyze');
+// const { cognitiveservices } = require('botbuilder-cognitiveservices');
 
 // Greeting Dialog ID
 const GREETING_DIALOG = 'greetingDialog';
@@ -35,6 +36,10 @@ const NONE_INTENT = 'None';
 // Supported LUIS Entities, defined in ./dialogs/greeting/resources/greeting.lu
 const USER_NAME_ENTITIES = ['userName', 'userName_patternAny'];
 const USER_LOCATION_ENTITIES = ['userLocation', 'userLocation_patternAny'];
+
+
+// QandA Maker service entry as defined in the .bot file.
+const Q_AND_A_CONFIGURATION = 'HealthBotQandA';
 
 /**
  * Demonstrates the following concepts:
@@ -69,9 +74,19 @@ class BasicBot {
         this.luisRecognizer = new LuisRecognizer({
             applicationId: luisConfig.appId,
             endpoint: luisEndpoint,
-            // CAUTION: Its better to assign and use a subscription key instead of authoring key here.
-            endpointKey: luisConfig.authoringKey
+            endpointKey: luisConfig.authoringKey  // CAUTION: Its better to assign and use a subscription key instead of authoring key here.
         });
+
+        // Add the QandA Maker Recognizer
+        const qnaConfig = botConfig.findServiceByNameOrId(Q_AND_A_CONFIGURATION);
+        if (!qnaConfig || !qnaConfig.kbId) throw new Error('Missing QandA Maker configuration.\n\n');
+        const qnaEndpointSettings = {
+            knowledgeBaseId: qnaConfig.kbId,
+            endpointKey: qnaConfig.endpointKey,
+            host: qnaConfig.hostname
+        };
+
+        this.qnaMaker = new QnAMaker(qnaEndpointSettings, {});
 
         // Create the property accessors for user and conversation state
         this.userProfileAccessor = userState.createProperty(USER_PROFILE_PROPERTY);
@@ -102,6 +117,7 @@ class BasicBot {
         // Handle Message activity type, which is the main activity type for shown within a conversational interface
         // Message activities may contain text, speech, interactive cards, and binary or unknown attachments.
         // see https://aka.ms/about-bot-activity-message to learn more about the message and other activity types
+
         if (context.activity.type === ActivityTypes.Message) {
             let dialogResult;
             // Create a dialog context
@@ -144,6 +160,17 @@ class BasicBot {
                                 await dc.beginDialog(GREETING_DIALOG);
                                 break;
                             case NONE_INTENT:
+
+                                // If we can't find a LUIS match, then we'll try QandA maker
+                                const qnaResults = await this.qnaMaker.generateAnswer(context.activity.text);
+
+                                if (qnaResults[0]) {
+                                    await dc.context.sendActivity(qnaResults[0].answer);
+                                    break;
+                                } else {
+                                    await dc.context.sendActivity(`I didn't understand what you just said to me.`);
+                                    break;
+                                }
                             default:
                                 // None or no intent identified, either way, let's provide some help
                                 // to the user
